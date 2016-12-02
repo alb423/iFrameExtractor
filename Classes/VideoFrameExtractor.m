@@ -12,8 +12,8 @@
 
 @interface VideoFrameExtractor (private)
 -(void)convertFrameToRGB;
--(UIImage *)imageFromAVPicture:(AVPicture)pict width:(int)width height:(int)height;
--(void)savePicture:(AVPicture)pFrame width:(int)width height:(int)height index:(int)iFrame;
+-(UIImage *)imageFromAVFrame:(AVFrame *)pFrame width:(int)width height:(int)height;
+-(void)saveFrame:(AVFrame *)pFrame width:(int)width height:(int)height index:(int)iFrame;
 -(void)setupScaler;
 @end
 
@@ -24,41 +24,13 @@
 
 @synthesize outputWidth, outputHeight;
 
-
-// 20130524 albert.liao modified start
-
-// 20130524 albert.liao modified start
 @synthesize bSnapShot, veVideoRecordState, RecordingTimer;
-
-- (void) SnapShot_AlertView:(NSError *)error
-{
-    UIAlertView *alert=nil;
-    
-    if (error)
-    {
-        // TODO: display different error message
-        alert = [[UIAlertView alloc] initWithTitle:@"Warning"
-                                           message:@"The Storage is full!\nFail to save captured image!"
-                                          delegate:self cancelButtonTitle:@"Ok"
-                                 otherButtonTitles:nil];
-    }
-    else // All is well
-    {
-        alert = [[UIAlertView alloc] initWithTitle:@"Success"
-                                           message:@"Image Has been captured in Camera Roll successfully"
-                                          delegate:self cancelButtonTitle:@"Ok"
-                                 otherButtonTitles:nil];
-    }
-    [alert show];
-    alert = nil;
-}
 
 
 - (void)image:(UIImage *)image didFinishSavingWithError:(NSError *)error contextInfo:(void *)contextInfo
 {
-    [self SnapShot_AlertView:error];
+    NSLog(@"Snapshot save may fail...");
 }
-// 20130524 albert.liao modified end
 
 -(void)setOutputWidth:(int)newValue {
 	if (outputWidth == newValue) return;
@@ -72,39 +44,54 @@
 	[self setupScaler];
 }
 
+
 -(UIImage *)currentImage {
-	if (!pFrame->data[0]) return nil;
+	if (!pYUVFrame->data[0]) return nil;
 	[self convertFrameToRGB];
     
-    // 20130524 albert.liao modified start
     // Save the image and clear the bSnapShot flag
     if(self.bSnapShot==YES)
     {
-            UIImage *myimg=nil;
-            AVPicture picture_tmp;
-            struct SwsContext *img_convert_ctx_tmp;
-            avpicture_alloc(&picture_tmp, PIX_FMT_RGB24, pFrame->width, pFrame->height);
-            img_convert_ctx_tmp = sws_getContext(pCodecCtx->width,
-                                                 pCodecCtx->height,
-                                                 pCodecCtx->pix_fmt,
-                                                 pFrame->width,
-                                                 pFrame->height,
-                                                 PIX_FMT_RGB24,
-                                                 SWS_FAST_BILINEAR, NULL, NULL, NULL);
-            
-            sws_scale (img_convert_ctx_tmp, (const uint8_t **)pFrame->data, pFrame->linesize,
-                       0, pCodecCtx->height,
-                       picture_tmp.data, picture_tmp.linesize);
-            
-            myimg = [self imageFromAVPicture:picture_tmp width:pFrame->width height:pFrame->height];
-            
+        UIImage *myimg=nil;
+        
+        struct SwsContext *pTempImgConvertCtx;
+        
+        AVFrame *pTmpAVFrame = av_frame_alloc();
+        av_frame_unref(pTmpAVFrame);
+
+        int bytes_num = av_image_get_buffer_size(AV_PIX_FMT_RGB24, pYUVFrame->width, pYUVFrame->height, 1);
+        uint8_t* buff = (uint8_t*)av_malloc(bytes_num);
+        av_image_fill_arrays((unsigned char **)(AVFrame *)pTmpAVFrame->data, pTmpAVFrame->linesize, buff, AV_PIX_FMT_RGB24, pYUVFrame->width, pYUVFrame->height, 1);
+        pTmpAVFrame->width = outputWidth;
+        pTmpAVFrame->height = outputHeight;
+        pTmpAVFrame->format = AV_PIX_FMT_RGB24;
+        
+        pTempImgConvertCtx = sws_getContext(pCodecCtx->width,
+                                            pCodecCtx->height,
+                                            pCodecCtx->pix_fmt,
+                                            pYUVFrame->width,
+                                            pYUVFrame->height,
+                                            AV_PIX_FMT_RGB24,
+                                            SWS_FAST_BILINEAR,
+                                             NULL,
+                                             NULL,
+                                             NULL);
+     
+        sws_scale (pTempImgConvertCtx, (const uint8_t **)pYUVFrame->data, pYUVFrame->linesize,
+                   0, pCodecCtx->height,
+                   pTmpAVFrame->data, pTmpAVFrame->linesize);
+        
+        myimg = [self imageFromAVFrame:pTmpAVFrame width:pYUVFrame->width height:pYUVFrame->height];
+
+        
             UIImageWriteToSavedPhotosAlbum(myimg, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
             self.bSnapShot = NO;
         
+            return myimg;
+        
     }
-    // 20130524 albert.liao modified end    
     
-	return [self imageFromAVPicture:picture width:outputWidth height:outputHeight];
+	return [self imageFromAVFrame:pRGBFrame width:outputWidth height:outputHeight];
 }
 
 -(double)duration {
@@ -133,13 +120,10 @@
     avcodec_register_all();
     av_register_all();
     
-    // 20130524 albert.liao modified start
 	avformat_network_init();
-    // 20130524 albert.liao modified end
     
     // Open video file
     AVDictionary *opts = 0;
-    //int ret = av_dict_set(&opts, "rtsp_transport", "tcp", 0);
     av_dict_set(&opts, "rtsp_transport", "tcp", 0);
     
     if(avformat_open_input(&pFormatCtx, [moviePath cStringUsingEncoding:NSASCIIStringEncoding], NULL, &opts) != 0) {
@@ -161,8 +145,9 @@
     }
     
     // Get a pointer to the codec context for the video stream
-    pCodecCtx = pFormatCtx->streams[videoStream]->codec;
-        
+    pCodecCtx = avcodec_alloc_context3(NULL);
+    avcodec_parameters_to_context(pCodecCtx, pFormatCtx->streams[videoStream]->codecpar);
+    
     // Find the decoder for the video stream
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
     if(pCodec == NULL) {
@@ -181,7 +166,8 @@
     }
     else
     {
-        pAudioCodecCtx = pFormatCtx->streams[audioStream]->codec;
+        pAudioCodecCtx = avcodec_alloc_context3(NULL);
+        avcodec_parameters_to_context(pAudioCodecCtx, pFormatCtx->streams[audioStream]->codecpar);
         
         // Find the decoder for the audio stream
         pAudioCodec = avcodec_find_decoder(pAudioCodecCtx->codec_id);
@@ -200,12 +186,18 @@
     
     av_dump_format(pFormatCtx, 0, [moviePath cStringUsingEncoding:NSASCIIStringEncoding], 0);
     
-    // Allocate video frame
-    pFrame = avcodec_alloc_frame();
-			
 	outputWidth = pCodecCtx->width;
-	self.outputHeight = pCodecCtx->height;
-			
+	outputHeight = pCodecCtx->height;
+		
+    // Allocate video frame
+    pYUVFrame = av_frame_alloc();
+    int bytes_num = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, outputWidth, outputHeight, 1);
+    uint8_t* buff = (uint8_t*)av_malloc(bytes_num);
+    av_image_fill_arrays((unsigned char **)(AVFrame *)pYUVFrame->data, pYUVFrame->linesize, buff, AV_PIX_FMT_YUV420P, outputWidth, outputHeight, 1);
+    pYUVFrame->width = outputWidth;
+    pYUVFrame->height = outputHeight;
+    pYUVFrame->format = AV_PIX_FMT_YUV420P;
+    
 	return self;
 	
 initError:
@@ -216,21 +208,29 @@ initError:
 
 -(void)setupScaler {
 
-	// Release old picture and scaler
-	avpicture_free(&picture);
-	sws_freeContext(img_convert_ctx);	
+	// Release old RGB frame and scaler
+	av_free(pRGBFrame);
+	sws_freeContext(pImgConvertCtx);
 	
-	// Allocate RGB picture
-	avpicture_alloc(&picture, PIX_FMT_RGB24, outputWidth, outputHeight);
-	
+	// Allocate RGB frame
+    pRGBFrame = av_frame_alloc();
+    av_frame_unref(pRGBFrame);
+    
+    int bytes_num = av_image_get_buffer_size(AV_PIX_FMT_RGB24, pYUVFrame->width, pYUVFrame->height, 1);
+    uint8_t* buff = (uint8_t*)av_malloc(bytes_num);
+    av_image_fill_arrays((unsigned char **)(AVFrame *)pRGBFrame->data, pRGBFrame->linesize, buff, AV_PIX_FMT_RGB24, pYUVFrame->width, pYUVFrame->height, 1);
+    pRGBFrame->width = outputWidth;
+    pRGBFrame->height = outputHeight;
+    pRGBFrame->format = AV_PIX_FMT_RGB24;
+    
 	// Setup scaler
 	static int sws_flags =  SWS_FAST_BILINEAR;
-	img_convert_ctx = sws_getContext(pCodecCtx->width, 
+	pImgConvertCtx = sws_getContext(pCodecCtx->width,
 									 pCodecCtx->height,
 									 pCodecCtx->pix_fmt,
 									 outputWidth, 
 									 outputHeight,
-									 PIX_FMT_RGB24,
+									 AV_PIX_FMT_RGB24,
 									 sws_flags, NULL, NULL, NULL);
 	
 }
@@ -244,21 +244,19 @@ initError:
 
 -(void)dealloc {
     
-    // 20131024 albert.liao modified start
     [aPlayer Stop:TRUE];
-    // 20131024 albert.liao modified end
     
 	// Free scaler
-	sws_freeContext(img_convert_ctx);	
+	sws_freeContext(pImgConvertCtx);
 
-	// Free RGB picture
-	avpicture_free(&picture);
+	// Free RGB frame
+    av_free(pRGBFrame);
     
     // Free the packet that was allocated by av_read_frame
-    av_free_packet(&packet);
+    av_packet_unref(&packet);
 	
     // Free the YUV frame
-    av_free(pFrame);
+    av_free(pYUVFrame);
 	
     // Close the codec
     if (pCodecCtx) avcodec_close(pCodecCtx);
@@ -276,16 +274,15 @@ initError:
 }
 
 -(BOOL)stepFrame {
-	// AVPacket packet;
     int frameFinished=0;
     static bool bFirstIFrame=false;
     static int64_t vPTS=0, vDTS=0, vAudioPTS=0, vAudioDTS=0;
     
     while(!frameFinished && av_read_frame(pFormatCtx, &packet)>=0) {
         // Is this a packet from the video stream?
+        int vRet = 0;
         if(packet.stream_index==videoStream) {
             
-            // 20130525 albert.liao modified start
             
             // Initialize a new format context for writing file
             if(veVideoRecordState!=eH264RecIdle)
@@ -365,7 +362,7 @@ initError:
                         {
                             h264_file_close(pFormatCtx_Record);
 #if 0
-                            // 20130607 Test
+                            // 20130607 Test, TODO: remove me
                             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(void)
                             {
                                 ALAssetsLibrary *library = [[ALAssetsLibrary alloc]init];
@@ -416,14 +413,19 @@ initError:
             }
             
             // Decode video frame
-            avcodec_decode_video2(pCodecCtx, pFrame, &frameFinished, &packet);
+            avcodec_send_packet(pCodecCtx, &packet);
+            do {
+                vRet = avcodec_receive_frame(pCodecCtx, pYUVFrame);
+            } while(vRet==EAGAIN);
+            
+            if(vRet==0) frameFinished=1;
+            else frameFinished=0;
+
         }
         else if(packet.stream_index==audioStream)
         {
-            // 20131024 albert.liao modfied start
             static int vPktCount=0;
             BOOL bIsAACADTS = FALSE;
-            int ret = 0;
 
             if(aPlayer.vAACType == eAAC_UNDEFINED)
             {
@@ -441,7 +443,7 @@ initError:
                     if(bIsAACADTS)
                     {
                         aPlayer.vAACType = eAAC_ADTS;
-                        //NSLog(@"is ADTS AAC");
+                        NSLog(@"is ADTS AAC");
                     }
                 }
                 else
@@ -454,14 +456,8 @@ initError:
                     {
                         if([aPlayer getStatus]!=eAudioRunning)
                         {
-                            dispatch_async(dispatch_get_main_queue(), ^(void) {
-                                @synchronized(aPlayer)
-                                {
-                                    NSLog(@"aPlayer start play");
-                                    [aPlayer Play];
-                                }
-                                
-                            });
+                            NSLog(@"aPlayer start play");
+                            [aPlayer Play];
                         }
                     }
                 }
@@ -483,8 +479,6 @@ initError:
                     NSLog(@"Put Audio Packet Error!!");
                 
             }
-
-            // 20131024 albert.liao modfied end
         
             if(bFirstIFrame==true)
             {
@@ -510,43 +504,42 @@ initError:
             //fprintf(stderr, "packet len=%d, Byte=%02X%02X%02X%02X%02X\n",\
                     packet.size, packet.data[0],packet.data[1],packet.data[2],packet.data[3], packet.data[4]);
         }
-        // 20130525 albert.liao modified end
-	}
+    }
 	return frameFinished!=0;
 }
 
 -(void)convertFrameToRGB {	
-	sws_scale (img_convert_ctx, (const uint8_t **)pFrame->data, pFrame->linesize,
+	sws_scale (pImgConvertCtx, (const uint8_t **)pYUVFrame->data, pYUVFrame->linesize,
 			   0, pCodecCtx->height,
-			   picture.data, picture.linesize);	
+			   pRGBFrame->data, pRGBFrame->linesize);
 }
 
--(UIImage *)imageFromAVPicture:(AVPicture)pict width:(int)width height:(int)height {
-	CGBitmapInfo bitmapInfo = kCGBitmapByteOrderDefault;
-	CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorDefault, pict.data[0], pict.linesize[0]*height,kCFAllocatorNull);
-	CGDataProviderRef provider = CGDataProviderCreateWithCFData(data);
-	CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-	CGImageRef cgImage = CGImageCreate(width, 
-									   height, 
-									   8, 
-									   24, 
-									   pict.linesize[0], 
-									   colorSpace, 
-									   bitmapInfo, 
-									   provider, 
-									   NULL, 
-									   NO, 
-									   kCGRenderingIntentDefault);
-	CGColorSpaceRelease(colorSpace);
-	UIImage *image = [UIImage imageWithCGImage:cgImage];
-	CGImageRelease(cgImage);
-	CGDataProviderRelease(provider);
-	CFRelease(data);
-	
-	return image;
+-(UIImage *)imageFromAVFrame:(AVFrame *)frame width:(int)width height:(int)height {
+    CGBitmapInfo bitmapInfo = kCGBitmapByteOrderDefault;
+    CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorDefault, frame->data[0], frame->linesize[0]*height,kCFAllocatorNull);
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData(data);
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGImageRef cgImage = CGImageCreate(width,
+                                       height,
+                                       8,
+                                       24,
+                                       frame->linesize[0],
+                                       colorSpace,
+                                       bitmapInfo,
+                                       provider,
+                                       NULL,
+                                       NO,
+                                       kCGRenderingIntentDefault);
+    CGColorSpaceRelease(colorSpace);
+    UIImage *image = [UIImage imageWithCGImage:cgImage];
+    CGImageRelease(cgImage);
+    CGDataProviderRelease(provider);
+    CFRelease(data);
+    
+    return image;
 }
 
--(void)savePPMPicture:(AVPicture)pict width:(int)width height:(int)height index:(int)iFrame {
+-(void)savePPMPicture:(AVFrame *)frame width:(int)width height:(int)height index:(int)iFrame {
     FILE *pFile;
 	NSString *fileName;
     int  y;
@@ -563,7 +556,7 @@ initError:
 	
     // Write pixel data
     for(y=0; y<height; y++)
-        fwrite(pict.data[0]+y*pict.linesize[0], 1, width*3, pFile);
+        fwrite(frame->data[0]+y*frame->linesize[0], 1, width*3, pFile);
 	
     // Close file
     fclose(pFile);

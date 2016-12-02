@@ -20,7 +20,7 @@
 //
 
 #import <Foundation/Foundation.h>
-
+#include <libavutil/imgutils.h>
 
 @interface Utilities : NSObject {
 

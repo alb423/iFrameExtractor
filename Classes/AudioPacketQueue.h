@@ -21,8 +21,8 @@
 @property  (nonatomic)  NSInteger size;
 - (id) initQueue;
 - (void) destroyQueue;
--(int) putAVPacket: (AVPacket *) pkt;
--(int) getAVPacket :(AVPacket *) pkt;
+-(bool) putAVPacket: (AVPacket *) pkt;
+-(bool) getAVPacket :(AVPacket *) pkt;
 -(void)freeAVPacket:(AVPacket *) pkt;
 @end
 

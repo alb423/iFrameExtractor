@@ -79,10 +79,10 @@ typedef enum eAACType {
 -(void) decodeAudioFile: (NSString *) FilePathIn ToPCMFile:(NSString *) FilePathOut withCodecCtx: (AVCodecContext *)pAudioCodecCtx withFormat:(AVFormatContext *) pFormatCtx withStreamIdx :(int) audioStream;
 -(int) getStatus;
 
--(int) putAVPacket: (AVPacket *) pkt;
--(int) getAVPacket :(AVPacket *) pkt;
+-(bool) putAVPacket: (AVPacket *) pkt;
+-(bool) getAVPacket :(AVPacket *) pkt;
 -(void)freeAVPacket:(AVPacket *) pkt;
--(int) getSize;
+-(NSInteger) getSize;
 - (void) RecordingStart:(NSString *)pRecordingFile;
 - (void) RecordingStop;
 - (void) RecordingSetAudioFormat:(int)vAudioFormat;

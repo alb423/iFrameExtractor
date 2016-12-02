@@ -8,10 +8,7 @@
 
 #ifndef H264_Save_h
 #define H264_Save_h
-<<<<<<< HEAD:Classes/H264_Save.h
 
-=======
->>>>>>> origin/master:Classes/Mp4_Save.h
 
 // TODO: when PTS_DTS_IS_CORRECT==1, it should ok??
 #define PTS_DTS_IS_CORRECT 0
@@ -22,8 +19,6 @@ extern void h264_file_write_audio_frame(AVFormatContext *fc, AVCodecContext  *pA
 extern void h264_file_close(AVFormatContext *fc);
 
 extern void h264_file_write_frame2(AVFormatContext *fc, int vStreamIdx, AVPacket *pkt );
-
-extern int MoveMP4MoovToHeader(char *pSrc, char *pDst);
 
 typedef enum
 {

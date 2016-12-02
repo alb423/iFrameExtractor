@@ -200,7 +200,7 @@
     
     if(pFormatCtx)
     {
-    audioDataSize=(pFormatCtx->duration)*(vBitsPerSample/8)*(pAudioCodecCtx->sample_rate)*(pAudioCodecCtx->channels);
+    audioDataSize= (int32_t)((pFormatCtx->duration)*(vBitsPerSample/8)*(pAudioCodecCtx->sample_rate)*(pAudioCodecCtx->channels));
     }
     fileSize=audioDataSize+36;
     
@@ -267,9 +267,7 @@
     AVPacket AudioPacket={0};
     AVFrame  *pAVFrame1;
     int iFrame=0;
-    uint8_t *pktData=NULL;
-    int pktSize, audioFileSize=0;
-    int gotFrame=0;
+    int audioFileSize=0;
     
     AVCodec         *pAudioCodec;
     AVCodecContext  *pAudioCodecCtx;
@@ -296,7 +294,7 @@
     
     int i;
     for(i=0;i<pAudioFormatCtx->nb_streams;i++){
-        if(pAudioFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_AUDIO){
+        if(pAudioFormatCtx->streams[audioStream]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO){
             audioStream=i;
             break;
         }
@@ -307,7 +305,10 @@
     }
     
     
-    pAudioCodecCtx = pAudioFormatCtx->streams[audioStream]->codec;
+    //pAudioCodecCtx = pAudioFormatCtx->streams[audioStream]->codec;
+    pAudioCodecCtx = avcodec_alloc_context3(NULL);
+    avcodec_parameters_to_context(pAudioCodecCtx, pAudioFormatCtx->streams[audioStream]->codecpar);
+    
     pAudioCodec = avcodec_find_decoder(pAudioCodecCtx->codec_id);
     if(pAudioCodec == NULL) {
         av_log(NULL, AV_LOG_ERROR, "Unsupported audio codec!\n");
@@ -363,7 +364,7 @@
         return self;
     }
     
-    pAVFrame1 = avcodec_alloc_frame();
+    pAVFrame1 = av_frame_alloc();
     av_init_packet(&AudioPacket);
     
     int buffer_size = 192000 + FF_INPUT_BUFFER_PADDING_SIZE;
@@ -374,56 +375,54 @@
     [AudioUtilities writeWavHeaderWithCodecCtx: pAudioCodecCtx withFormatCtx: pAudioFormatCtx toFile: wavFile];
     while(av_read_frame(pAudioFormatCtx,&AudioPacket)>=0) {
         if(AudioPacket.stream_index==audioStream) {
-            int len=0;
+            int vRet=0;
             if((iFrame++)>=4000)
                 break;
-            pktData=AudioPacket.data;
-            pktSize=AudioPacket.size;
-            while(pktSize>0) {
+            
+            avcodec_send_packet(pAudioCodecCtx, &AudioPacket);
+            do {
+                vRet = avcodec_receive_frame(pAudioCodecCtx, pAVFrame1);
+            } while(vRet==EAGAIN);
+            
+            if(vRet<0){
+                printf("Error while decoding\n");
+                break;
+            }
+            else {
+                int data_size = av_samples_get_buffer_size(NULL, pAudioCodecCtx->channels,
+                                                           pAVFrame1->nb_samples,pAudioCodecCtx->sample_fmt, 1);
                 
-                len = avcodec_decode_audio4(pAudioCodecCtx, pAVFrame1, &gotFrame, &AudioPacket);
-                if(len<0){
-                    printf("Error while decoding\n");
-                    break;
-                }
-                if(gotFrame) {
-                    int data_size = av_samples_get_buffer_size(NULL, pAudioCodecCtx->channels,
-                                                               pAVFrame1->nb_samples,pAudioCodecCtx->sample_fmt, 1);
+                // Resampling
+                if(pAudioCodecCtx->sample_fmt==AV_SAMPLE_FMT_FLTP){
+                    int in_samples = pAVFrame1->nb_samples;
+                    int outCount=0;
+                    uint8_t *out=NULL;
+                    int out_linesize;
+                    av_samples_alloc(&out,
+                                     &out_linesize,
+                                     pAVFrame1->channels,
+                                     in_samples,
+                                     AV_SAMPLE_FMT_S16,
+                                     0
+                                     );
+                    outCount = swr_convert(pSwrCtx,
+                                           (uint8_t **)&out,
+                                           in_samples,
+                                           (const uint8_t **)pAVFrame1->extended_data,
+                                           in_samples);
                     
-                    // Resampling
-                    if(pAudioCodecCtx->sample_fmt==AV_SAMPLE_FMT_FLTP){
-                        int in_samples = pAVFrame1->nb_samples;
-                        int outCount=0;
-                        uint8_t *out=NULL;
-                        int out_linesize;
-                        av_samples_alloc(&out,
-                                         &out_linesize,
-                                         pAVFrame1->channels,
-                                         in_samples,
-                                         AV_SAMPLE_FMT_S16,
-                                         0
-                                         );
-                        outCount = swr_convert(pSwrCtx,
-                                               (uint8_t **)&out,
-                                               in_samples,
-                                               (const uint8_t **)pAVFrame1->extended_data,
-                                               in_samples);
-                        
-                        if(outCount<0)
-                            NSLog(@"swr_convert fail");
-                        
-                        fwrite(out,  1, data_size/2, wavFile);
-                        audioFileSize+=data_size/2;
-                    }
+                    if(outCount<0)
+                        NSLog(@"swr_convert fail");
                     
-                    fflush(wavFile);
-                    gotFrame = 0;
+                    fwrite(out,  1, data_size/2, wavFile);
+                    audioFileSize+=data_size/2;
                 }
-                pktSize-=len;
-                pktData+=len;
+                
+                fflush(wavFile);
+
             }
         }
-        av_free_packet(&AudioPacket);
+        av_packet_unref(&AudioPacket);
     }
     fseek(wavFile,40,SEEK_SET);
     fwrite(&audioFileSize,1,sizeof(int32_t),wavFile);
@@ -433,7 +432,7 @@
     fclose(wavFile);
     
     if (pSwrCtx)   swr_free(&pSwrCtx);
-    if (pAVFrame1)    avcodec_free_frame(&pAVFrame1);
+    if (pAVFrame1)    av_frame_free(&pAVFrame1);
     if (pAudioCodecCtx) avcodec_close(pAudioCodecCtx);
     if (pAudioFormatCtx) {
         avformat_close_input(&pAudioFormatCtx);

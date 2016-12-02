@@ -25,15 +25,11 @@
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
 
-// 20130525 albert.liao modified start
-#include "Mp4_Save.h"
-// 20130525 albert.liao modified end
+#include "H264_Save.h"
 
-// 20131024 albert.liao modified start
 #import "AudioPlayer.h"
 #import "AudioPacketQueue.h"
 #import "AudioUtilities.h"
-// 20131024 albert.liao modified end
 
 #define RECORDING_AT_RTSP_START 0
 //#define RECORDING_AT_RTSP_START 1
@@ -43,26 +39,22 @@
 	AVFormatContext *pFormatCtx;
 	AVCodecContext *pCodecCtx;
     
-    AVFrame *pFrame;
+    AVFrame *pYUVFrame;
+    AVFrame *pRGBFrame;
     AVPacket packet;
-	AVPicture picture;
 	int videoStream;
     int audioStream;
-	struct SwsContext *img_convert_ctx;
+	struct SwsContext *pImgConvertCtx;
 	int sourceWidth, sourceHeight;
 	int outputWidth, outputHeight;
 	UIImage *currentImage;
 	double duration;
     double currentTime;
     
-    // 20130524 albert.liao modified start
     AVFormatContext *pFormatCtx_Record;
     AVCodecContext *pAudioCodecCtx;
-    // 20130524 albert.liao modified end
     
-    // 20131024 albert.liao modified start
     AudioPlayer *aPlayer;
-    // 20131024 albert.liao modified end
 }
 
 /* Last decoded picture as UIImage */
@@ -89,11 +81,8 @@
 /* Seek to closest keyframe near specified time */
 -(void)seekTime:(double)seconds;
 
-// 20130524 albert.liao modified start
 @property (nonatomic) BOOL bSnapShot;
 @property (nonatomic) int veVideoRecordState;
-@property (nonatomic, retain) NSTimer *RecordingTimer;
-- (void) SnapShot_AlertView:(NSError *)error;               
-// 20130524 albert.liao modified end
+@property (nonatomic, retain) NSTimer *RecordingTimer;              
 
 @end

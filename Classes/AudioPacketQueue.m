@@ -36,8 +36,8 @@
         packetData = [pQueue objectAtIndex:0];
         if(packetData!= nil)
         {
-            [packetData getBytes:&vxPacket];
-            av_free_packet(&vxPacket);
+            [packetData getBytes:&vxPacket length:sizeof(AVPacket)];
+            av_packet_unref(&vxPacket);
             packetData = nil;
             [pQueue removeObjectAtIndex: 0];
             count--;
@@ -54,7 +54,7 @@
 
 }
 
--(int) putAVPacket: (AVPacket *) pPacket{
+-(bool) putAVPacket: (AVPacket *) pPacket{
 
     // memory leakage is related to pPacket
 //    if ((av_dup_packet(pPacket)) < 0) {
@@ -70,10 +70,10 @@
     pTmpData = nil;
     count= count + 1;
     [pLock unlock];
-    return 1;
+    return true;
 }
 
--(int ) getAVPacket :(AVPacket *) pPacket{
+-(bool ) getAVPacket :(AVPacket *) pPacket{
     NSMutableData *packetData = nil;
     
     // Do we have any items?
@@ -83,10 +83,11 @@
         packetData = [pQueue objectAtIndex:0];
         if(packetData!= nil)
         {
-            int vCount = [pQueue count];
+            unsigned long vCount = [pQueue count];
             if(vCount<10)
-                NSLog(@"getAVPacket %d", vCount);
-            [packetData getBytes:pPacket];
+                NSLog(@"getAVPacket %ld", vCount);
+            [packetData getBytes:pPacket length:sizeof(AVPacket)];
+
             packetData = nil;
             [pQueue removeObjectAtIndex: 0];
             if(pPacket)
@@ -94,20 +95,20 @@
             count--;
         }
         [pLock unlock];
-        return 1;
+        return true;
     }
     else
     {
         [pLock unlock];
-        return 0;
+        return false;
     }
 
-    return 0;
+    return false;
 }
 
 -(void)freeAVPacket:(AVPacket *) pPacket{
     [pLock  lock];
-    av_free_packet(pPacket);
+    av_packet_unref(pPacket);
     [pLock unlock];
 }
 
