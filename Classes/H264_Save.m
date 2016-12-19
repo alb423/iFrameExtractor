@@ -137,7 +137,7 @@ void h264_file_write_audio_frame(AVFormatContext *fc, AVCodecContext *pAudioCode
     pst = fc->streams[ vStreamIdx ];
     //pAudioOutputCodecContext = pst->codec;
     pAudioOutputCodecContext = avcodec_alloc_context3(NULL);
-    avcodec_parameters_to_context(pAudioOutputCodecContext, pst->codecpar);
+    avcodec_parameters_from_context(pst->codecpar, pAudioOutputCodecContext);
     
     // Init packet
     av_init_packet( &pkt );
@@ -263,15 +263,9 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     vVideoStreamIdx = pst->index;
     NSLog(@"Video Stream:%d",vVideoStreamIdx);
     
-    //pcc = pst->codec;
     pcc = avcodec_alloc_context3(NULL);
-    avcodec_parameters_to_context(pcc, pst->codecpar);
-    
     avcodec_get_context_defaults3( pcc, AVMEDIA_TYPE_VIDEO );
 
-    // TODO: test here
-    //*pcc = *pCodecCtx;
-    
     // TODO: check ffmpeg source for "q=%d-%d", some parameter should be set before write header
     
     // Save the stream as origin setting without convert
@@ -285,12 +279,6 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     pcc->time_base.num = pCodecCtx->time_base.num;
     pcc->time_base.den = pCodecCtx->time_base.den;
     pcc->ticks_per_frame = pCodecCtx->ticks_per_frame;
-//    pcc->frame_bits= pCodecCtx->frame_bits;
-//    pcc->frame_size= pCodecCtx->frame_size;
-//    pcc->frame_number= pCodecCtx->frame_number;
-    
-//    pcc->pts_correction_last_dts = pCodecCtx->pts_correction_last_dts;
-//    pcc->pts_correction_last_pts = pCodecCtx->pts_correction_last_pts;
     
     NSLog(@"time_base, num=%d, den=%d, fps should be %g",\
           pcc->time_base.num, pcc->time_base.den, \
@@ -313,6 +301,7 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
         pcc->time_base.den = fps;
     }
 #endif
+    
     // reference ffmpeg\libavformat\utils.c
 
     // For SPS and PPS in avcC container
@@ -320,6 +309,8 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     memcpy(pcc->extradata, pCodecCtx->extradata, pCodecCtx->extradata_size);
     pcc->extradata_size = pCodecCtx->extradata_size;
     
+    avcodec_parameters_from_context(pst->codecpar, pcc);
+
     // For Audio stream
     if(pAudioCodecCtx)
     {
@@ -333,20 +324,19 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
         
         //pAudioOutputCodecContext = pst2->codec;
         pAudioOutputCodecContext = avcodec_alloc_context3(NULL);
-        avcodec_parameters_to_context(pAudioOutputCodecContext, pst2->codecpar);
-        
         avcodec_get_context_defaults3( pAudioOutputCodecContext, pAudioCodec );
+        
         NSLog(@"Audio Stream:%d",vAudioStreamIdx);
         NSLog(@"pAudioCodecCtx->bits_per_coded_sample=%d",pAudioCodecCtx->bits_per_coded_sample);
         
-        pAudioOutputCodecContext->codec_type = AVMEDIA_TYPE_AUDIO;
-        pAudioOutputCodecContext->codec_id = AV_CODEC_ID_AAC;
+        pAudioOutputCodecContext->codec_type = pAudioCodecCtx->codec_type;//AVMEDIA_TYPE_AUDIO;
+        pAudioOutputCodecContext->codec_id = pAudioCodecCtx->codec_id;//AV_CODEC_ID_AAC;
         
         // Copy the codec attributes
         pAudioOutputCodecContext->channels = pAudioCodecCtx->channels;
         pAudioOutputCodecContext->channel_layout = pAudioCodecCtx->channel_layout;
         pAudioOutputCodecContext->sample_rate = pAudioCodecCtx->sample_rate;
-        pAudioOutputCodecContext->bit_rate = 12000;//pAudioCodecCtx->sample_rate * pAudioCodecCtx->bits_per_coded_sample;
+        pAudioOutputCodecContext->bit_rate = pAudioCodecCtx->sample_rate * pAudioCodecCtx->bits_per_coded_sample; //12000
         pAudioOutputCodecContext->bits_per_coded_sample = pAudioCodecCtx->bits_per_coded_sample;
         pAudioOutputCodecContext->profile = pAudioCodecCtx->profile;
         //FF_PROFILE_AAC_LOW;
@@ -364,9 +354,11 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
         pAudioOutputCodecContext->ticks_per_frame = pAudioCodecCtx->ticks_per_frame;
         pAudioOutputCodecContext->frame_size = 1024;
         
+        avcodec_parameters_from_context(pst2->codecpar, pAudioOutputCodecContext);
+        
         NSLog(@"profile:%d, sample_rate:%d, channles:%d", pAudioOutputCodecContext->profile, pAudioOutputCodecContext->sample_rate, pAudioOutputCodecContext->channels);
         AVDictionary *opts = NULL;
-        av_dict_set(&opts, "strict", "experimental", 0);
+        //av_dict_set(&opts, "strict", "experimental", 0);
         
         if (avcodec_open2(pAudioOutputCodecContext, pAudioCodec, &opts) < 0) {
             fprintf(stderr, "\ncould not open codec\n");
@@ -374,28 +366,13 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
         
         av_dict_free(&opts);
         
-#if 0
-        // For Audio, this part is no need
-        if(pAudioCodecCtx->extradata_size!=0)
-        {
-            NSLog(@"extradata_size !=0");
-            pAudioOutputCodecContext->extradata = malloc(sizeof(uint8_t)*pAudioCodecCtx->extradata_size);
-            memcpy(pAudioOutputCodecContext->extradata, pAudioCodecCtx->extradata, pAudioCodecCtx->extradata_size);
-            pAudioOutputCodecContext->extradata_size = pAudioCodecCtx->extradata_size;
-        }
-        else
-        {
-            // For WMA test only
-            pAudioOutputCodecContext->extradata_size = 0;
-            NSLog(@"extradata_size ==0");
-        }
-#endif
     }
     
     if(fc->oformat->flags & AVFMT_GLOBALHEADER)
     {
         pcc->flags |= CODEC_FLAG_GLOBAL_HEADER;
-        pAudioOutputCodecContext->flags |= CODEC_FLAG_GLOBAL_HEADER;
+        if(pAudioOutputCodecContext)
+            pAudioOutputCodecContext->flags |= CODEC_FLAG_GLOBAL_HEADER;
     }
     
     if ( !( fc->oformat->flags & AVFMT_NOFILE ) )

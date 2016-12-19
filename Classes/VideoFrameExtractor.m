@@ -298,7 +298,8 @@ initError:
                             NSString *videoPath = @"/Users/liaokuohsun/iFrameTest.mp4";
                             
                             const char *file = [videoPath UTF8String];
-                            pFormatCtx_Record = avformat_alloc_context();
+                            //pFormatCtx_Record = avformat_alloc_context();
+                            avformat_alloc_output_context2(&pFormatCtx_Record, NULL, NULL, file);
                             bFlag = h264_file_create(file, pFormatCtx_Record, pCodecCtx, pAudioCodecCtx,/*fps*/0.0, packet.data, packet.size );
                             
                             if(bFlag==true)
@@ -358,6 +359,9 @@ initError:
                         
                     case eH264RecClose:
                     {
+                        bFirstIFrame = false;
+                        veVideoRecordState = eH264RecIdle;
+                        
                         if ( pFormatCtx_Record )
                         {
                             h264_file_close(pFormatCtx_Record);
@@ -394,9 +398,6 @@ initError:
                         {
                             NSLog(@"fc no exist");
                         }
-                        bFirstIFrame = false;
-                        veVideoRecordState = eH264RecIdle;
-                        
                     }
                     break;
                         

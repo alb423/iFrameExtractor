@@ -36,7 +36,7 @@
     //video = [[VideoFrameExtractor alloc] initWithVideo:[Utilities bundlePath:@"7h800-2.mp4"]];
     video = [[VideoFrameExtractor alloc] initWithVideo:[Utilities bundlePath:@"h265_ex3.mp4"]];
     //video = [[VideoFrameExtractor alloc] initWithVideo:@"rtsp://192.168.11.2:8554/h265ESVideoTest"];
-
+    //video = [[VideoFrameExtractor alloc] initWithVideo:@"rtsp://172.19.19.146/stream1"];
     
     // set output image size
     video.outputWidth = 1280-120; // reserver 120 pixel for control button

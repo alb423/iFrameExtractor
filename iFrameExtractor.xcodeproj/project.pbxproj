@@ -33,6 +33,7 @@
 		9A170D5E181657A000AB5B82 /* AudioPacketQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A170D5A181657A000AB5B82 /* AudioPacketQueue.m */; };
 		9A170D601816581700AB5B82 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A170D5F1816581700AB5B82 /* AudioToolbox.framework */; };
 		9A170D621816582E00AB5B82 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A170D611816582E00AB5B82 /* AVFoundation.framework */; };
+		9A4B20E31E083D8400010C1B /* 7h800-2.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 9A4B20E21E083D8400010C1B /* 7h800-2.mp4 */; };
 		9A95E74F174F5AA6008EB183 /* H264_Save.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A95E74E174F5AA6008EB183 /* H264_Save.m */; };
 		9AA118961DE2EF3F00401F21 /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 9AA118951DE2EF3F00401F21 /* libbz2.tbd */; };
 		9AD2375B1DE6B74A00ACA7DD /* Storyboard.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9AD2375A1DE6B74A00ACA7DD /* Storyboard.storyboard */; };
@@ -78,6 +79,7 @@
 		9A170D5B181657A000AB5B82 /* AudioPacketQueue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioPacketQueue.h; sourceTree = "<group>"; };
 		9A170D5F1816581700AB5B82 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		9A170D611816582E00AB5B82 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		9A4B20E21E083D8400010C1B /* 7h800-2.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "7h800-2.mp4"; sourceTree = "<group>"; };
 		9A95E74E174F5AA6008EB183 /* H264_Save.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264_Save.m; sourceTree = "<group>"; };
 		9A95E750174F5AC0008EB183 /* H264_Save.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = H264_Save.h; sourceTree = "<group>"; };
 		9AA118951DE2EF3F00401F21 /* libbz2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbz2.tbd; path = usr/lib/libbz2.tbd; sourceTree = SDKROOT; };
@@ -96,17 +98,17 @@
 			buildActionMask = 2147483647;
 			files = (
 				9AD2376A1DE6E8EA00ACA7DD /* AssetsLibrary.framework in Frameworks */,
-				9A1387861DE5FB76007C5F0B /* libiconv.tbd in Frameworks */,
+				9A170D621816582E00AB5B82 /* AVFoundation.framework in Frameworks */,
+				9A170D601816581700AB5B82 /* AudioToolbox.framework in Frameworks */,
 				9A13877B1DE5ED57007C5F0B /* CoreMedia.framework in Frameworks */,
 				9A06E9231DE5E36700607CE9 /* CoreVideo.framework in Frameworks */,
-				9AA118961DE2EF3F00401F21 /* libbz2.tbd in Frameworks */,
-				9A170D621816582E00AB5B82 /* AVFoundation.framework in Frameworks */,
-				9A0C25931DE2ED8800887B2A /* VideoToolbox.framework in Frameworks */,
-				9A0C258D1DE2ECCE00887B2A /* libz.tbd in Frameworks */,
-				9A170D601816581700AB5B82 /* AudioToolbox.framework in Frameworks */,
-				09A69722110EC23900FE1DA8 /* Foundation.framework in Frameworks */,
 				288765FD0DF74451002DB57D /* CoreGraphics.framework in Frameworks */,
+				09A69722110EC23900FE1DA8 /* Foundation.framework in Frameworks */,
+				9A0C25931DE2ED8800887B2A /* VideoToolbox.framework in Frameworks */,
 				1DF5F4E00D08C38300B7A737 /* UIKit.framework in Frameworks */,
+				9A1387861DE5FB76007C5F0B /* libiconv.tbd in Frameworks */,
+				9AA118961DE2EF3F00401F21 /* libbz2.tbd in Frameworks */,
+				9A0C258D1DE2ECCE00887B2A /* libz.tbd in Frameworks */,
 				9A1387681DE5E7A9007C5F0B /* libavcodec.a in Frameworks */,
 				9A1387691DE5E7A9007C5F0B /* libavdevice.a in Frameworks */,
 				9A13876A1DE5E7A9007C5F0B /* libavfilter.a in Frameworks */,
@@ -179,6 +181,7 @@
 		29B97317FDCFA39411CA2CEA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				9A4B20E21E083D8400010C1B /* 7h800-2.mp4 */,
 				9A0B57381DE6F23B0069FE9A /* h265_ex3.mp4 */,
 				09F1D691110ED3AA00F50511 /* Default.png */,
 				0918E6D010F839FC00300130 /* sophie.mov */,
@@ -286,6 +289,7 @@
 				09F1D692110ED3AA00F50511 /* Default.png in Resources */,
 				9ADF204A1761B6180018ACF3 /* Default-568h@2x.png in Resources */,
 				9AD2375B1DE6B74A00ACA7DD /* Storyboard.storyboard in Resources */,
+				9A4B20E31E083D8400010C1B /* 7h800-2.mp4 in Resources */,
 				9A0B57391DE6F23B0069FE9A /* h265_ex3.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
