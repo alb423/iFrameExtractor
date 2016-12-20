@@ -208,6 +208,9 @@ void h264_file_write_audio_frame(AVFormatContext *fc, AVCodecContext *pAudioCode
                 pkt.stream_index = vStreamIdx;//pst->index;
                 pkt.flags |= AV_PKT_FLAG_KEY;
                 
+                pkt.pts = pts;
+                pkt.dts = dts;
+                
             }
 
 #endif
@@ -264,9 +267,6 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     NSLog(@"Video Stream:%d",vVideoStreamIdx);
     
     pcc = avcodec_alloc_context3(NULL);
-    avcodec_get_context_defaults3( pcc, AVMEDIA_TYPE_VIDEO );
-
-    // TODO: check ffmpeg source for "q=%d-%d", some parameter should be set before write header
     
     // Save the stream as origin setting without convert
     pcc->codec_type = pCodecCtx->codec_type;
@@ -305,7 +305,7 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     // reference ffmpeg\libavformat\utils.c
 
     // For SPS and PPS in avcC container
-    pcc->extradata = malloc(sizeof(uint8_t)*pCodecCtx->extradata_size);
+    pcc->extradata = av_malloc(sizeof(uint8_t)*pCodecCtx->extradata_size);
     memcpy(pcc->extradata, pCodecCtx->extradata, pCodecCtx->extradata_size);
     pcc->extradata_size = pCodecCtx->extradata_size;
     
@@ -319,13 +319,12 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
         pAudioCodec = avcodec_find_encoder(AV_CODEC_ID_AAC);
         
         // Add audio stream
-        pst2 = avformat_new_stream( fc, pAudioCodec );
+        pst2 = avformat_new_stream( fc, 0);
         vAudioStreamIdx = pst2->index;
         
-        //pAudioOutputCodecContext = pst2->codec;
         pAudioOutputCodecContext = avcodec_alloc_context3(NULL);
         avcodec_get_context_defaults3( pAudioOutputCodecContext, pAudioCodec );
-        
+
         NSLog(@"Audio Stream:%d",vAudioStreamIdx);
         NSLog(@"pAudioCodecCtx->bits_per_coded_sample=%d",pAudioCodecCtx->bits_per_coded_sample);
         
@@ -339,33 +338,21 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
         pAudioOutputCodecContext->bit_rate = pAudioCodecCtx->sample_rate * pAudioCodecCtx->bits_per_coded_sample; //12000
         pAudioOutputCodecContext->bits_per_coded_sample = pAudioCodecCtx->bits_per_coded_sample;
         pAudioOutputCodecContext->profile = pAudioCodecCtx->profile;
-        //FF_PROFILE_AAC_LOW;
-        // pAudioCodecCtx->bit_rate;
-        
-        // AV_SAMPLE_FMT_U8P, AV_SAMPLE_FMT_S16P
-        //pAudioOutputCodecContext->sample_fmt = AV_SAMPLE_FMT_FLTP;//pAudioCodecCtx->sample_fmt;
+
         pAudioOutputCodecContext->sample_fmt = pAudioCodecCtx->sample_fmt;
-        //pAudioOutputCodecContext->sample_fmt = AV_SAMPLE_FMT_U8;
-        
         pAudioOutputCodecContext->sample_aspect_ratio = pAudioCodecCtx->sample_aspect_ratio;
 
         pAudioOutputCodecContext->time_base.num = pAudioCodecCtx->time_base.num;
         pAudioOutputCodecContext->time_base.den = pAudioCodecCtx->time_base.den;
         pAudioOutputCodecContext->ticks_per_frame = pAudioCodecCtx->ticks_per_frame;
-        pAudioOutputCodecContext->frame_size = 1024;
+        pAudioOutputCodecContext->frame_size = pAudioCodecCtx->frame_size;
+
+        //pAudioOutputCodecContext->frame_size = 1024;
         
         avcodec_parameters_from_context(pst2->codecpar, pAudioOutputCodecContext);
         
         NSLog(@"profile:%d, sample_rate:%d, channles:%d", pAudioOutputCodecContext->profile, pAudioOutputCodecContext->sample_rate, pAudioOutputCodecContext->channels);
-        AVDictionary *opts = NULL;
-        //av_dict_set(&opts, "strict", "experimental", 0);
-        
-        if (avcodec_open2(pAudioOutputCodecContext, pAudioCodec, &opts) < 0) {
-            fprintf(stderr, "\ncould not open codec\n");
-        }
-        
-        av_dict_free(&opts);
-        
+
     }
     
     if(fc->oformat->flags & AVFMT_GLOBALHEADER)

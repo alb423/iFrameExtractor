@@ -11,7 +11,7 @@
 
 
 // TODO: when PTS_DTS_IS_CORRECT==1, it should ok??
-#define PTS_DTS_IS_CORRECT 0
+#define PTS_DTS_IS_CORRECT 1
 
 extern int  h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext *pCodecCtx,AVCodecContext *pAudioCodecCtx, double fps, void *p, int len );
 extern void h264_file_write_frame(AVFormatContext *fc, int vStreamId, const void* p, int len, int64_t dts, int64_t pts);
