@@ -11,7 +11,6 @@
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "H264_Save.h"
-//#include "libavformat/avio.h"
 #import "AudioUtilities.h"
 
 int vVideoStreamIdx = -1, vAudioStreamIdx = -1,  waitkey = 1;
@@ -126,7 +125,6 @@ void h264_file_write_frame(AVFormatContext *fc, int vStreamIdx, const void* p, i
 void h264_file_write_audio_frame(AVFormatContext *fc, AVCodecContext *pAudioCodecContext ,int vStreamIdx, const void* pData, int vDataLen, int64_t dts, int64_t pts )
 {
     int vRet=0;
-    AVCodecContext *pAudioOutputCodecContext;
     AVStream *pst = NULL;
     AVPacket pkt;
     
@@ -135,94 +133,77 @@ void h264_file_write_audio_frame(AVFormatContext *fc, AVCodecContext *pAudioCode
     
     // may be audio or video
     pst = fc->streams[ vStreamIdx ];
-    //pAudioOutputCodecContext = pst->codec;
-    pAudioOutputCodecContext = avcodec_alloc_context3(NULL);
-    avcodec_parameters_from_context(pst->codecpar, pAudioOutputCodecContext);
     
     // Init packet
     av_init_packet( &pkt );
     
     if(vStreamIdx==vAudioStreamIdx)
     {
-        if(pAudioOutputCodecContext==NULL)
+        int bIsADTSAAS=0, vRedudantHeaderOfAAC=0;
+        tAACADTSHeaderInfo vxADTSHeader={0};
+        uint8_t *pHeader = (uint8_t *)pData;
+        
+        bIsADTSAAS = [AudioUtilities parseAACADTSHeader:pHeader ToHeader:(tAACADTSHeaderInfo *) &vxADTSHeader];
+        // If header has the syncword of adts_fixed_header
+        // syncword = 0xFFF
+        if(bIsADTSAAS)
         {
-            NSLog(@"pAudioOutputCodecContext==NULL");
+            vRedudantHeaderOfAAC = 7;
         }
         else
         {
-            int bIsADTSAAS=0, vRedudantHeaderOfAAC=0;
-            //AVPacket AudioPacket={0};
-            tAACADTSHeaderInfo vxADTSHeader={0};
-            uint8_t *pHeader = (uint8_t *)pData;
-            
-            bIsADTSAAS = [AudioUtilities parseAACADTSHeader:pHeader ToHeader:(tAACADTSHeaderInfo *) &vxADTSHeader];
-            // If header has the syncword of adts_fixed_header
-            // syncword = 0xFFF
-            if(bIsADTSAAS)
-            {
-                vRedudantHeaderOfAAC = 7;
-            }
-            else
-            {
-                vRedudantHeaderOfAAC = 0;
-            }
+            vRedudantHeaderOfAAC = 0;
+        }
             
 #if 0
-            int gotFrame=0, len=0;
-            
-            AVFrame vxAVFrame1={0};
-            AVFrame *pAVFrame1 = &vxAVFrame1;
-            
-            av_init_packet(&AudioPacket);
-            av_frame_unref(pAVFrame1);
+        int gotFrame=0, len=0;
+        
+        AVFrame vxAVFrame1={0};
+        AVFrame *pAVFrame1 = &vxAVFrame1;
+        
+        av_init_packet(&AudioPacket);
+        av_frame_unref(pAVFrame1);
 
-            if(bIsADTSAAS)
-            {
-                AudioPacket.size = vDataLen-vRedudantHeaderOfAAC;
-                AudioPacket.data = pHeader+vRedudantHeaderOfAAC;
-            }
-            else
-            {
-                // This will produce error message
-                // "malformated aac bitstream, use -absf aac_adtstoasc"
-                AudioPacket.size = vDataLen;
-                AudioPacket.data = pHeader;
-            }
-            // Decode from input format to PCM
-            len = avcodec_decode_audio4(pAudioCodecContext, pAVFrame1, &gotFrame, &AudioPacket);
-            
-            // Encode from PCM to AAC
-            vRet = avcodec_encode_audio2(pAudioOutputCodecContext, &pkt, pAVFrame1, &gotFrame);
-            if(vRet!=0)
-                NSLog(@"avcodec_encode_audio2 fail");
-            pkt.stream_index = vStreamIdx;//pst->index;
+        if(bIsADTSAAS)
+        {
+            AudioPacket.size = vDataLen-vRedudantHeaderOfAAC;
+            AudioPacket.data = pHeader+vRedudantHeaderOfAAC;
+        }
+        else
+        {
+            // This will produce error message
+            // "malformated aac bitstream, use -absf aac_adtstoasc"
+            AudioPacket.size = vDataLen;
+            AudioPacket.data = pHeader;
+        }
+        // Decode from input format to PCM
+        len = avcodec_decode_audio4(pAudioCodecContext, pAVFrame1, &gotFrame, &AudioPacket);
+        
+        // Encode from PCM to AAC
+        vRet = avcodec_encode_audio2(pAudioOutputCodecContext, &pkt, pAVFrame1, &gotFrame);
+        if(vRet!=0)
+            NSLog(@"avcodec_encode_audio2 fail");
+        pkt.stream_index = vStreamIdx;//pst->index;
 
 #else
 
-            //if(pAudioCodecContext->codec_id==AV_CODEC_ID_AAC)
-            {
-                // This will produce error message
-                // "malformated aac bitstream, use -absf aac_adtstoasc"
-                pkt.size = vDataLen-vRedudantHeaderOfAAC;
-                pkt.data = pHeader+vRedudantHeaderOfAAC;
-                pkt.stream_index = vStreamIdx;//pst->index;
-                pkt.flags |= AV_PKT_FLAG_KEY;
-                
-                pkt.pts = pts;
-                pkt.dts = dts;
-                
-            }
+        // This will produce error message
+        // "malformated aac bitstream, use -absf aac_adtstoasc"
+        pkt.size = vDataLen-vRedudantHeaderOfAAC;
+        pkt.data = pHeader+vRedudantHeaderOfAAC;
+        pkt.stream_index = vStreamIdx;//pst->index;
+        pkt.flags |= AV_PKT_FLAG_KEY;
+        
+        pkt.pts = pts;
+        pkt.dts = dts;
 
 #endif
-//            pkt.dts = AV_NOPTS_VALUE;
-//            pkt.pts = AV_NOPTS_VALUE;
-            vRet = av_interleaved_write_frame( fc, &pkt );
-            if(vRet!=0)
-                NSLog(@"av_interleaved_write_frame for audio fail");
-        }
+//        pkt.dts = AV_NOPTS_VALUE;
+//        pkt.pts = AV_NOPTS_VALUE;
+        vRet = av_interleaved_write_frame( fc, &pkt );
+        if(vRet!=0)
+            NSLog(@"av_interleaved_write_frame for audio fail");
     }
-
-
 }
 
 
@@ -236,10 +217,9 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
 {
     int vRet=0;
     AVOutputFormat *of=NULL;
-    AVStream *pst=NULL;
+    AVStream *pst=NULL, *pst2=NULL;
     AVCodecContext *pcc=NULL, *pAudioOutputCodecContext=NULL;
 
-    avcodec_register_all();
     av_register_all();
     av_log_set_level(AV_LOG_VERBOSE);
     
@@ -257,8 +237,7 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     fprintf(stderr, "file=%s\n",pFilePath);
     
     // Create container
-    of = av_guess_format( 0, pFilePath, 0 );
-    fc->oformat = of;
+    of = fc->oformat;
     strcpy( fc->filename, pFilePath );
     
     // Add video stream
@@ -311,47 +290,34 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     
     avcodec_parameters_from_context(pst->codecpar, pcc);
 
-    // For Audio stream
+    // Add audio stream
     if(pAudioCodecCtx)
     {
-        AVCodec *pAudioCodec=NULL;
-        AVStream *pst2=NULL;
-        pAudioCodec = avcodec_find_encoder(AV_CODEC_ID_AAC);
-        
-        // Add audio stream
+       
         pst2 = avformat_new_stream( fc, 0);
         vAudioStreamIdx = pst2->index;
         
         pAudioOutputCodecContext = avcodec_alloc_context3(NULL);
-        avcodec_get_context_defaults3( pAudioOutputCodecContext, pAudioCodec );
-
-        NSLog(@"Audio Stream:%d",vAudioStreamIdx);
-        NSLog(@"pAudioCodecCtx->bits_per_coded_sample=%d",pAudioCodecCtx->bits_per_coded_sample);
         
         pAudioOutputCodecContext->codec_type = pAudioCodecCtx->codec_type;//AVMEDIA_TYPE_AUDIO;
         pAudioOutputCodecContext->codec_id = pAudioCodecCtx->codec_id;//AV_CODEC_ID_AAC;
         
         // Copy the codec attributes
-        pAudioOutputCodecContext->channels = pAudioCodecCtx->channels;
-        pAudioOutputCodecContext->channel_layout = pAudioCodecCtx->channel_layout;
+        pAudioOutputCodecContext->sample_fmt = pAudioCodecCtx->sample_fmt;
         pAudioOutputCodecContext->sample_rate = pAudioCodecCtx->sample_rate;
         pAudioOutputCodecContext->bit_rate = pAudioCodecCtx->sample_rate * pAudioCodecCtx->bits_per_coded_sample; //12000
+
+        pAudioOutputCodecContext->channels = pAudioCodecCtx->channels;
+        pAudioOutputCodecContext->channel_layout = pAudioCodecCtx->channel_layout;
+        
         pAudioOutputCodecContext->bits_per_coded_sample = pAudioCodecCtx->bits_per_coded_sample;
         pAudioOutputCodecContext->profile = pAudioCodecCtx->profile;
-
-        pAudioOutputCodecContext->sample_fmt = pAudioCodecCtx->sample_fmt;
-        pAudioOutputCodecContext->sample_aspect_ratio = pAudioCodecCtx->sample_aspect_ratio;
-
-        pAudioOutputCodecContext->time_base.num = pAudioCodecCtx->time_base.num;
-        pAudioOutputCodecContext->time_base.den = pAudioCodecCtx->time_base.den;
-        pAudioOutputCodecContext->ticks_per_frame = pAudioCodecCtx->ticks_per_frame;
-        pAudioOutputCodecContext->frame_size = pAudioCodecCtx->frame_size;
-
-        //pAudioOutputCodecContext->frame_size = 1024;
         
         avcodec_parameters_from_context(pst2->codecpar, pAudioOutputCodecContext);
-        
-        NSLog(@"profile:%d, sample_rate:%d, channles:%d", pAudioOutputCodecContext->profile, pAudioOutputCodecContext->sample_rate, pAudioOutputCodecContext->channels);
+
+        NSLog(@"[Audio] Stream:%d",vAudioStreamIdx);
+        NSLog(@"[Audio] bits_per_coded_sample=%d",pAudioCodecCtx->bits_per_coded_sample);
+        NSLog(@"[Audio] profile:%d, sample_rate:%d, channles:%d", pAudioOutputCodecContext->profile, pAudioOutputCodecContext->sample_rate, pAudioOutputCodecContext->channels);
 
     }
     
@@ -375,8 +341,12 @@ int h264_file_create(const char *pFilePath, AVFormatContext *fc, AVCodecContext 
     av_dump_format(fc, 0, pFilePath, 1);
     
     vRet = avformat_write_header( fc, NULL );
-    if(vRet==0)
+    if(vRet==0) {
         return true;
-    else
+    }
+    else {
+        NSLog(@"Fail, vRet=%d", vRet);
         return false;
+    }
+    
 }

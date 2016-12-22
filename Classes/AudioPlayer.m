@@ -137,7 +137,7 @@ void HandleOutputBuffer (
         }
 #endif
         vSlienceCount++;
-        NSLog(@"Put Silence -- Need adjust circular buffer");
+        //NSLog(@"Put Silence -- Need adjust circular buffer");
         @synchronized(self)
         {
             // 20130427 set silence data to real silence
